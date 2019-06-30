@@ -4,13 +4,9 @@
 
 # エラー・モデル
 
-ZIOは実行の失敗(=エラー)を`Cause[E]`という代数的データ型で表現します。`Cause[E]`の型パラメータ`E`は`ZIO[R, E, A]`の2番目の型パラメータ`E`と
-同じ型でアプリケーション・ロジックに関する失敗を表現する型です。`Cause[E]`は概念的にはアプリケーション内の失敗`E`とアプリケーション外の失敗`Throwable`の直和型です。
+ZIOは実行の失敗(=エラー)を`Cause[E]`という代数的データ型で表現します。`Cause[E]`の型パラメータ`E`は`ZIO[R, E, A]`の2番目の型パラメータ`E`と同じ型でアプリケーション・ロジックに関する失敗を表現する型です。`Cause[E]`は概念的にはアプリケーション内の失敗`E`とアプリケーション外の失敗`Throwable`の直和型です。
 
-例えばユーザ管理を行っているサービスがあります。指定したユーザ`userId`のアイコンを更新するロジック`updateUserIcon`は以下のように記述できます。
-指定されたユーザが見つからずアイコンの更新が失敗する可能性をロジックのシグネチャで`ZIO[R, E, A]`の`E`に`UserNotFound.type`型を指定して表現します。
-対応する`Cause[E]`は`Cause[UserNotFound.type]`になります。”ユーザが見つからない”といったアプリケーション上の制約以外にもOut of Memory、
-スレッドの中断などが原因で`updateUserIcon`は失敗する可能性があります。
+例えばユーザ管理を行っているサービスがあります。指定したユーザ`userId`のアイコンを更新するロジック`updateUserIcon`は以下のように記述できます。指定されたユーザが見つからずアイコンの更新が失敗する可能性をロジックのシグネチャで`ZIO[R, E, A]`の`E`に`UserNotFound.type`型を指定して表現します。対応する`Cause[E]`は`Cause[UserNotFound.type]`になります。”ユーザが見つからない”といったアプリケーション上の制約以外にもOut of Memory、スレッドの中断などが原因で`updateUserIcon`は失敗する可能性があります。
 
 ```scala
 final case class UserId()
@@ -31,9 +27,7 @@ object UserService {
 
 `ZIO#fold`メソッドを使用するとアプリケーション・ロジックの結果(`ZIO[R, E, A]`の`R`)とアプリケーション・ロジックの失敗(`ZIO[R, E, A]`の`E`)に同時にアクセスすることができます。
 
-先ほどの`UserService`を利用してREST APIのエンドポイントを提供する`UserController`サービスを例とします。`UserController`は`UserService`の結果、またはエラーをレスポンスに変換してクライアントに返します。
-`UserController#endpointForUpdatingUserIcon`のシグネチャ`ZIO[Any, Nothing, Response]`でエラー情報の部分が`Nothing`になりました。
-これは失敗`UserNotFound.type`をアプリケーション上処理して、結果`Response`に変換したためです。`UserController`のクライアントは存在しないユーザのアイコンを更新しようとしても処理は失敗せず、処理の結果`Response`を受け取ることができます。
+先ほどの`UserService`を利用してREST APIのエンドポイントを提供する`UserController`を例とします。`UserController`は`UserService`の結果、またはエラーをレスポンスに変換してクライアントに返します。`UserController#endpointForUpdatingUserIcon`のシグネチャ`ZIO[Any, Nothing, Response]`でエラー情報の部分が`Nothing`になりました。これは失敗`UserNotFound.type`をアプリケーション上処理して、結果`Response`に変換したためです。`UserController`のクライアントは存在しないユーザのアイコンを更新しようとしても処理は失敗せず、処理の結果`Response`を受け取ることができます。
 
 ```scala
 final case class UserId()
@@ -64,9 +58,7 @@ object UserController {
 
 `ZIO.mapError`を使用するとエラーにのみアクセスすることができます。Effective Javaで紹介されているerror translationなどのイディオムを実装するときに便利です。
 
-前回までの例と同じ機能をClean Architectureで実装する例を考えます。Clean Architectureではインフラ側の失敗(`Throwable`)をラップしてアプリケーションの失敗として扱います。
-ユースケースのロジック`UpdateUserIconUseCase#execute`は`ZIO[IUserRepository, UseCaseError, Unit]`を返しています。アプリケーション・レベルの失敗(`UserNotFound`)と
-インフラの失敗(`Throwable`)をerror translation(`mapError(InfraError)`)によって同じアプリケーション・レベルの失敗(`UseCaseError`)として扱います。
+前回までの例と同じ機能をClean Architectureで実装する例を考えます。Clean Architectureではインフラ側の失敗(`Throwable`)をラップしてアプリケーションの失敗として扱います。ユースケースのロジック`UpdateUserIconUseCase#execute`は`ZIO[IUserRepository, UseCaseError, Unit]`を返しています。アプリケーション・レベルの失敗(`UserNotFound`)とインフラの失敗(`Throwable`)をerror translation(`mapError(InfraError)`)によって同じアプリケーション・レベルの失敗(`UseCaseError`)として扱います。
 
 ```scala
 final case class UserId()
@@ -102,12 +94,9 @@ object UpdateUserIconUseCase {
 
 アプリケーション外の失敗はロジックの型情報(`ZIO[R, E, A]`)には現れません。アクセスするにはをアプリケーション・ロジックの結果(`ZIO[R, E, A]`の`A`)やアプリケーション・ロジックの失敗(`ZIO[R, E, A]`の`E`)として取り出す必要があります。
 
-`ZIO#sandbox`メソッドを利用するとアプリケーション外の失敗情報へアクセスできるようになります。
-型`ZIO[R, E, A]`のロジックに対して`sandbox`を呼び出すとロジックの型は`ZIO[R, Cause[E], A]`になり、前述のとおり`Cause[E]`がアプリケーションの失敗(`Failure[E]`)と
-アプリケーション外の失敗`Throwable`を含む代数的データ型です。
+`ZIO#sandbox`メソッドを利用するとアプリケーション外の失敗情報へアクセスできるようになります。型`ZIO[R, E, A]`のロジックに対して`sandbox`を呼び出すとロジックの型は`ZIO[R, Cause[E], A]`になります。前述のとおり`Cause[E]`がアプリケーションの失敗(`Failure[E]`)とアプリケーション外の失敗`Throwable`を含む代数的データ型です。
 
-最初の`UserService`の例でSandbox化の前後で型を比べてみます。`ZIO[Any, UserNotFound.type, Unit]`のロジックをSandbox化すると
-`ZIO[Any, Exit.Cause[UserNotFound.type], Unit] `になります。
+最初の`UserService`の例でSandbox化の前後で型を比べてみます。`ZIO[Any, UserNotFound.type, Unit]`のロジックをSandbox化すると`ZIO[Any, Exit.Cause[UserNotFound.type], Unit] `になります。
 
 ```scala
 import scalaz.zio.{Exit, ZIO}
@@ -125,13 +114,9 @@ object UserService {
 }
 ```
 
-Sandbox化で`Cause[E]`を取り出した後は前述の`fold`や`mapError`で扱うことができます。先ほどと同じ`Controller`の例でアプリケーション外の失敗も`Response`で返すように修正します。
-`Cause[E]#failureOrCause`メソッドで`Either`型に変換することができます。
-`Left`がアプリケーション内の失敗`E`で`Right`がアプリケーション外の失敗`Cause[Nothing]`です。
+Sandbox化で`Cause[E]`を取り出した後は前述の`fold`や`mapError`で扱うことができます。先ほどと同じ`Controller`の例でアプリケーション外の失敗も`Response`で返すように修正します。`Cause[E]#failureOrCause`メソッドで`Either`型に変換することができます。`Left`がアプリケーション内の失敗`E`で`Right`がアプリケーション外の失敗`Cause[Nothing]`です。
 
-`Right`が`Throwable`ではなく`Cause[Nothing]`であるのは、`Cause[E]`は複数の失敗を保持できるように設計されているためです。
-複数の失敗情報のうち"最も重要な失敗"を`squash`で取得します。`squash`の実装では"アプリケーション内の失敗`E` > `InterruptedException` >
-その他の`Throwable`"の順に重要度が定義されています。例えば、`E`と`InterruptedException`の両方が発生した場合、`squash`の結果は`E`になります。
+`Right`が`Throwable`ではなく`Cause[Nothing]`であるのは、`Cause[E]`は複数の失敗を保持できるように設計されているためです。複数の失敗情報のうち"最も重要な失敗"を`squash`で取得します。`squash`の実装では"アプリケーション内の失敗`E` > `InterruptedException` > その他の`Throwable`"の順に重要度が定義されています。例えば、`E`と`InterruptedException`の両方が発生した場合、`squash`の結果は`E`になります。
 
 ```scala
 final case class UserId()
@@ -173,12 +158,9 @@ object UserController {
 
 エラー型を定義するときは`Exception`を継承した`seald trait`を使用するようにしましょう。`ZIO[R, E, A]`は`E`型に対してcovariantで設計されているため複数のエラーを共通の型へ自動的に拡張してくれます。
 
-以下サービスごとにエラーを2系統(`UserServiceError`と`NotificationServiceError`)定義したケースです。2つのサービスを利用した`logic`では共通の`ApplicationError`に拡張されます。
-このエラー拡張では`Nothing`も意図通りに動作します。ログはアプリケーションのロジックに影響を与えるべきではないため`LoggineService#log`は"アプリケーションレベルでは失敗しません"(`E = Nothing`)。
-ロジック中にログを取得しても失敗の型は`ApplicationError`です。
+以下サービスごとにエラーを2系統(`UserServiceError`と`NotificationServiceError`)定義したケースです。2つのサービスを利用した`logic`では共通の`ApplicationError`に拡張されます。このエラー拡張では`Nothing`も意図通りに動作します。ログはアプリケーションのロジックに影響を与えるべきではないため`LoggineService#log`は"アプリケーションレベルでは失敗しません"(`E = Nothing`)。ロジック中にログを取得しても失敗の型は`ApplicationError`です。
 
-このようにエラー型の拡張は自動で行われるためエラーは不必要に抽象的な型を返さないようにしましょう。例えば`UserService`が`ApplicationError`を返したり、
-`LoggingService`が`ApplicationError`を返すことはやめましょう。
+このようにエラー型の拡張は自動で行われるためエラーは不必要に抽象的な型を返さないようにしましょう。例えば`UserService`が`ApplicationError`を返したり、`LoggingService`が`ApplicationError`を返すことはやめましょう。
 
 ```scala
 sealed trait ApplicationError extends Exception
@@ -214,15 +196,9 @@ object Application{
 
 # Clean Architecture再訪
 
-最後にZIOのエラー・モデルを利用してClean Architectureのエラー・モデルを単純化する方法を見てみたいと思います。
-前述のとおり`Cause[E]`は実質的にはアプリケーション内の失敗`E`とアプリケーション外の失敗`Throwable`の直和でした。
-アプリケーション外の失敗を`E`でラップすることなく`Cause[E]`で表現することができます。
+最後にZIOのエラー・モデルを利用してClean Architectureのエラー・モデルを単純化する方法を見てみたいと思います。前述のとおり`Cause[E]`は実質的にはアプリケーション内の失敗`E`とアプリケーション外の失敗`Throwable`の直和でした。アプリケーション外の失敗を`E`でラップすることなく`Cause[E]`で表現することができます。
 
-先ほどのClean Architectureのコードからインフラ側の失敗をラップする`InfraError`を削除します。error translation(`mapError`)をしていた箇所で`ZIO#orDie`を呼び出します。
-`ZIO#orDie`はアプリケーション内の失敗からアプリケーション外の失敗へと変換します。`ZIO[R, E, A]`に対して`orDie`を呼び出すと`ZIO[R, Nothing, A]`という型になります。
-重要なことはエラー情報を伝えるチャネルが`E`から`Cause[E]`に変わるだけでエラー情報は失われないということです。
-`InfraError`を削除する前のコードと削除した後のコードは等価です。さらに等価の変換を推し進めて`IUserRepository#find`や`IUserRepository#store`の型をそれぞれ
-`ZIO[Any, Nothing, Option[User]]`と`ZIO[Any, Nothing, Unit]`に変更すれば`orDie`の呼び出しも不要になります。
+先ほどのClean Architectureのコードからインフラ側の失敗をラップする`InfraError`を削除します。error translation(`mapError`)をしていた箇所で`ZIO#orDie`を呼び出します。`ZIO#orDie`はアプリケーション内の失敗からアプリケーション外の失敗へと変換します。`ZIO[R, E, A]`に対して`orDie`を呼び出すと`ZIO[R, Nothing, A]`という型になります。重要なことはエラー情報を伝えるチャネルが`E`から`Cause[E]`に変わるだけでエラー情報は失われないということです。`InfraError`を削除する前のコードと削除した後のコードは等価です。さらに等価の変換を推し進めて`IUserRepository#find`や`IUserRepository#store`の型をそれぞれ`ZIO[Any, Nothing, Option[User]]`と`ZIO[Any, Nothing, Unit]`に変更すれば`orDie`の呼び出しも不要になります。
 
 ```scala
 final case class UserId()
@@ -257,18 +233,15 @@ object UpdateUserIconUseCase {
 
 この記事ではZIOではエラー・モデル、エラー情報へのアクセス方法、ベストプラクティスを紹介しました。
 
-ZIOでは失敗を大きく2つに分類します。アプリケーション内の失敗とアプリケーション外の失敗です。アプリケーション内の失敗は副作用`ZIO[R, E, A]`の`E`という型で表現されます。
-アプリケーション外の失敗は`Throwable`で表現され副作用の型にはでてきません。また`Cause[E]`という型でアプリケーション内と外の失敗の直和を表現します。
+ZIOでは失敗を大きく2つに分類します。アプリケーション内の失敗とアプリケーション外の失敗です。アプリケーション内の失敗は副作用`ZIO[R, E, A]`の`E`という型で表現されます。アプリケーション外の失敗は`Throwable`で表現され副作用の型にはでてきません。また`Cause[E]`という型でアプリケーション内と外の失敗の直和を表現します。
 
 アプリケーション内の失敗`E`にアクセスするには`fold`や`mapError`を使用します。
 
 アプリケーション外の失敗`Throwable`にアクセスするには`sandbox`で`Cause[E]`を取得する必要があります。
 
-ZIOのエラーの仕組みを最大限に活用するには、エラーを`Exception`から派生させた`sealed trait`（直和型）で表現しましょう。
-ロジックで必要な最低限のエラーを返すようにするとcovariantを活かして合成が楽になります。
+ZIOのエラーの仕組みを最大限に活用するには、エラーを`Exception`から派生させた`sealed trait`（直和型）で表現しましょう。ロジックで必要な最低限のエラーを返すようにするとcovariantを活かして合成が楽になります。
 
-またこの記事では紹介しませんでしたが、ZIOには強力なトレース機能が備わっています。
-興味のある人には[Error Management: Future vs ZIO:動画](https://www.youtube.com/watch?v=mGxcaQs3JWI)をお勧めします。
+またこの記事では紹介しませんでしたが、ZIOには強力なトレース機能が備わっています。興味のある人には[Error Management: Future vs ZIO:動画](https://www.youtube.com/watch?v=mGxcaQs3JWI)をお勧めします。
 
 # 参考
 
